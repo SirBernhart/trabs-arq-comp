@@ -8,19 +8,19 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
     float *auxMatrixPointer = matrix->rows;
 
     int matrixArrayLength = matrix->height * matrix->width;
-    float *lastMatrixAddress = auxMatrixPointer + (matrixArrayLength * sizeof(float*));
+    float *lastMatrixAddress = auxMatrixPointer + (matrixArrayLength * sizeof(float *));
 
-    for(; auxMatrixPointer <= lastMatrixAddress ; auxMatrixPointer++)
+    for (; auxMatrixPointer <= lastMatrixAddress; auxMatrixPointer++)
     {
         *auxMatrixPointer *= scalar_value;
     }
-    
+
     return 1;
 }
 
 int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 {
-    if(a->width != b->height)
+    if (a->width != b->height)
     {
         printf("ERROR! Matrix a has a different number of columns (%d) than Matrix b has rows (%d)", &a->width, &b->height);
         return 0;
@@ -34,15 +34,16 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     int matrixBLength = b->height * b->width;
     int matrixCLength = c->height * c->width;
 
-    float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float*));
-    float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float*));
-    float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float*));
+    float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float *));
+    float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
+    float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
 
-    for(int row = 0 ; auxMatrixAPointer < lastMatrixAAddress ; auxMatrixAPointer += sizeof(float*), row++)
+    for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer += sizeof(float *), row++)
     {
-        for(auxMatrixBPointer = b->rows; auxMatrixBPointer < lastMatrixBAddress ; auxMatrixBPointer += sizeof(float*))
+        for (auxMatrixBPointer = b->rows; auxMatrixBPointer < b->width; auxMatrixBPointer += sizeof(float *))
         {
-            for(auxMatrixCPointer = c->rows + sizeof(float*) * row ; auxMatrixBPointer < lastMatrixBAddress ; auxMatrixBPointer += sizeof(float*))
+            auxMatrixCPointer = c->rows + sizeof(float *) * row;
+            *auxMatrixCPointer += (*auxMatrixAPointer) * (*auxMatrixBPointer);
         }
     }
 
