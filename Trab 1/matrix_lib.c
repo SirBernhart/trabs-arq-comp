@@ -1,6 +1,6 @@
 #include "matrix_lib.h"
 
-// ./matrix_lib_test 5 3 3 3 3 matrix1.txt matrix2.txt result1.txt result2.txt
+// ./matrix_lib_test 5 3 3 3 3 matrix1.bin matrix2.bin result1.bin result2.bin
 // gcc -Wall -o matrix_lib_test matrix_lib_test.c matrix_lib.c timer.c
 
 int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
@@ -10,7 +10,7 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
     int matrixArrayLength = matrix->height * matrix->width;
     float *lastMatrixAddress = auxMatrixPointer + (matrixArrayLength * sizeof(float*));
 
-    for(; auxMatrixPointer <= lastMatrixAddress ; auxMatrixPointer += sizeof(float*))
+    for(; auxMatrixPointer <= lastMatrixAddress ; auxMatrixPointer++)
     {
         *auxMatrixPointer *= scalar_value;
     }
