@@ -1,4 +1,9 @@
 #include "matrix_lib.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <errno.h>
 
 // ./matrix_lib_test 5 3 3 3 3 matrix1.bin matrix2.bin result1.bin result2.bin
 // gcc -Wall -o matrix_lib_test matrix_lib_test.c matrix_lib.c timer.c
@@ -31,18 +36,18 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     float *auxMatrixCPointer = c->rows;
 
     int matrixALength = a->height * a->width;
-    int matrixBLength = b->height * b->width;
-    int matrixCLength = c->height * c->width;
+    // int matrixBLength = b->height * b->width;
+    // int matrixCLength = c->height * c->width;
 
     float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float *));
-    float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
-    float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
+    // float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
+    // float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
 
     for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer++, row++)
     {
-        for (auxMatrixBPointer = b->rows; auxMatrixBPointer < b->width; auxMatrixBPointer++)
+        for (int column = 0; column < b->width; auxMatrixCPointer = c->rows + row * b->width, auxMatrixBPointer++, column++, auxMatrixCPointer++)
         {
-            auxMatrixCPointer = c->rows + sizeof(float *) * row;
+
             *auxMatrixCPointer += (*auxMatrixAPointer) * (*auxMatrixBPointer);
         }
     }
