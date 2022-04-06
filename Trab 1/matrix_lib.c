@@ -38,9 +38,9 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
     float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
 
-    for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer += sizeof(float *), row++)
+    for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer++, row++)
     {
-        for (auxMatrixBPointer = b->rows; auxMatrixBPointer < b->width; auxMatrixBPointer += sizeof(float *))
+        for (auxMatrixBPointer = b->rows; auxMatrixBPointer < b->width; auxMatrixBPointer++)
         {
             auxMatrixCPointer = c->rows + sizeof(float *) * row;
             *auxMatrixCPointer += (*auxMatrixAPointer) * (*auxMatrixBPointer);
