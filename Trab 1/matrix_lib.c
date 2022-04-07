@@ -5,7 +5,7 @@
 #include <string.h>
 #include <errno.h>
 
-// ./matrix_lib_test 5 3 3 3 3 matrix1.bin matrix2.bin result1.bin result2.bin
+// ./matrix_lib_test 1 3 3 3 3 matrix1.bin matrix2.bin result1.bin result2.bin
 // gcc -Wall -o matrix_lib_test matrix_lib_test.c matrix_lib.c timer.c
 
 int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
@@ -36,35 +36,29 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     float *auxMatrixCPointer = c->rows;
 
     int matrixALength = a->height * a->width;
-    int matrixBLength = b->height * b->width;
-    int matrixCLength = c->height * c->width;
 
     float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float *));
-    float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
-    float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
 
-    int columns = 0;
-    int rows = 0;
+    int columnA = 0;
 
-    // Por algum motivo se deixar so o lastMatrixAdress ele calcula como se a matriz tivesse uma dimensao a menos
-    for (; auxMatrixAPointer <= lastMatrixAAddress + matrixALength; auxMatrixAPointer++)
+    for (int row = 0 ; auxMatrixAPointer <= lastMatrixAAddress + matrixALength ; auxMatrixAPointer++, columnA++)
     {
-
-        for (; auxMatrixBPointer < lastMatrixBAddress + matrixBLength; auxMatrixBPointer++)
+        if(columnA == a->width)
         {
-            // Verifica se a coluna acabou para resetar a posicao do ponteiro
-            if (columns >= b->height)
-            {
-                auxMatrixCPointer = c->rows;
-                columns = 0;
-            }
-
-            auxMatrixCPointer = c->rows + rows * b->height + columns;
-            *auxMatrixCPointer = *auxMatrixAPointer;
-            columns++;
+            row++;
+            columnA = 0;
         }
+        
+        auxMatrixCPointer = c->rows;
+        auxMatrixCPointer += row * c->width;
 
-        rows++;
+        auxMatrixBPointer = b->rows;
+        auxMatrixBPointer += row * b->width;
+
+        for (int column = 0 ; column < b->width ; auxMatrixBPointer++, auxMatrixCPointer++, column++)
+        {
+            *auxMatrixCPointer += *auxMatrixAPointer * *auxMatrixBPointer;
+        }
     }
 
     return 1;
