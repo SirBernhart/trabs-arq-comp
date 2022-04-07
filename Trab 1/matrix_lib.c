@@ -27,7 +27,7 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 {
     if (a->width != b->height)
     {
-        printf("ERROR! Matrix a has a different number of columns (%d) than Matrix b has rows (%d)", &a->width, &b->height);
+        printf("ERROR! Matrix a has a different number of columns (%lu) than Matrix b has rows (%lu)", a->width, b->height);
         return 0;
     }
 
@@ -36,20 +36,35 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     float *auxMatrixCPointer = c->rows;
 
     int matrixALength = a->height * a->width;
-    // int matrixBLength = b->height * b->width;
-    // int matrixCLength = c->height * c->width;
+    int matrixBLength = b->height * b->width;
+    int matrixCLength = c->height * c->width;
 
     float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float *));
-    // float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
-    // float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
+    float *lastMatrixBAddress = auxMatrixBPointer + (matrixBLength * sizeof(float *));
+    float *lastMatrixCAddress = auxMatrixCPointer + (matrixCLength * sizeof(float *));
 
-    for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer++, row++)
+    int columns = 0;
+    int rows = 0;
+
+    // Por algum motivo se deixar so o lastMatrixAdress ele calcula como se a matriz tivesse uma dimensao a menos
+    for (; auxMatrixAPointer <= lastMatrixAAddress + matrixALength; auxMatrixAPointer++)
     {
-        for (int column = 0; column < b->width; auxMatrixCPointer = c->rows + row * b->width, auxMatrixBPointer++, column++, auxMatrixCPointer++)
-        {
 
-            *auxMatrixCPointer += (*auxMatrixAPointer) * (*auxMatrixBPointer);
+        for (; auxMatrixBPointer < lastMatrixBAddress + matrixBLength; auxMatrixBPointer++)
+        {
+            // Verifica se a coluna acabou para resetar a posicao do ponteiro
+            if (columns >= b->height)
+            {
+                auxMatrixCPointer = c->rows;
+                columns = 0;
+            }
+
+            auxMatrixCPointer = c->rows + rows * b->height + columns;
+            *auxMatrixCPointer = *auxMatrixAPointer;
+            columns++;
         }
+
+        rows++;
     }
 
     return 1;
