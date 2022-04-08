@@ -37,25 +37,25 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 
     int matrixALength = a->height * a->width;
 
-    float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength * sizeof(float *));
+    float *lastMatrixAAddress = auxMatrixAPointer + (matrixALength);
 
     int columnA = 0;
 
-    for (int row = 0 ; auxMatrixAPointer <= lastMatrixAAddress + matrixALength ; auxMatrixAPointer++, columnA++)
+    for (int row = 0; auxMatrixAPointer <= lastMatrixAAddress; auxMatrixAPointer++, columnA++)
     {
-        if(columnA == a->width)
+        if (columnA == a->width)
         {
             row++;
             columnA = 0;
         }
-        
+
         auxMatrixCPointer = c->rows;
         auxMatrixCPointer += row * c->width;
 
         auxMatrixBPointer = b->rows;
         auxMatrixBPointer += row * b->width;
 
-        for (int column = 0 ; column < b->width ; auxMatrixBPointer++, auxMatrixCPointer++, column++)
+        for (int column = 0; column < b->width; auxMatrixBPointer++, auxMatrixCPointer++, column++)
         {
             *auxMatrixCPointer += *auxMatrixAPointer * *auxMatrixBPointer;
         }
