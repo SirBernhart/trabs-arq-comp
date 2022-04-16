@@ -6,9 +6,6 @@
 #include <errno.h>
 #include <immintrin.h>
 
-// ./matrix_lib_test 2 8 16 16 8 matrix1.bin matrix2.bin result1.bin result2.bin
-// gcc -Wall -o matrix_lib_test matrix_lib_test.c matrix_lib.c timer.c
-
 int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
 {
     float *auxMatrixPointer = matrix->rows;
@@ -18,14 +15,14 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
 
     __m256 m256ScalarVector = _mm256_set1_ps(scalar_value);
     __m256 m256MatrixPointer;
-    __m256 m256MultPointer;
+    __m256 m256MultResultPointer;
     
     //float = 4 bytes (32bits) // 32 * 8 = 256 -> o tamanho do Vector __m256
     for (; auxMatrixPointer <= lastMatrixAddress; auxMatrixPointer += 8)
     {
         m256MatrixPointer = _mm256_load_ps(auxMatrixPointer);
-        m256MultPointer = _mm256_mul_ps(m256ScalarVector, m256MatrixPointer);
-        _mm256_store_ps(auxMatrixPointer, m256MultPointer);
+        m256MultResultPointer = _mm256_mul_ps(m256ScalarVector, m256MatrixPointer);
+        _mm256_store_ps(auxMatrixPointer, m256MultResultPointer);
     }
 
     return 1;
@@ -49,6 +46,11 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 
     int columnA = 0;
 
+    __m256 m256MatrixAPointer;
+    __m256 m256MatrixBPointer;
+    __m256 m256MatrixCPointer;
+    __m256 m256MultAddResultPointer;
+
     for (int row = 0; auxMatrixAPointer <= lastMatrixAAddress; auxMatrixAPointer++, columnA++)
     {
         if (columnA == a->width)
@@ -63,9 +65,15 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         auxMatrixBPointer = b->rows;
         auxMatrixBPointer += row * b->width;
 
-        for (int column = 0; column < b->width; auxMatrixBPointer++, auxMatrixCPointer++, column++)
+        m256MatrixAPointer = _mm256_set1_ps(*auxMatrixAPointer);
+
+        for (int column = 0; column < b->width; auxMatrixBPointer+=8, auxMatrixCPointer+=8, column+=8)
         {
-            *auxMatrixCPointer += *auxMatrixAPointer * *auxMatrixBPointer;
+            m256MatrixBPointer = _mm256_load_ps(auxMatrixBPointer);
+            m256MatrixCPointer = _mm256_load_ps(auxMatrixCPointer);
+            m256MultAddResultPointer = _mm256_fmadd_ps(m256MatrixAPointer, m256MatrixBPointer, m256MatrixCPointer);
+
+            _mm256_store_ps(auxMatrixCPointer, m256MultAddResultPointer);
         }
     }
 
