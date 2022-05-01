@@ -9,32 +9,30 @@
 
 int threadAmount = 1;
 
-typedef struct 
-{
-    int matrixWidth;
-    int amountOfRowsToOperate;
-    float* matrixStartingRowPtr;
-} COMMON_THREAD_ARGS;
-
 typedef struct
 {
-    COMMON_THREAD_ARGS commonArgs;
+    int matrixWidth;
+    float* matrixStartingRowPtr;
     float scalarValue;
+    int matrixArraySize;
 } SCALAR_MATRIX_MULT_THREAD_ARGS;
 
 typedef struct
 {
-    COMMON_THREAD_ARGS commonArgs;
-    struct matrix *matA;
-    struct matrix *matB;
+    int matAWidth;
+    float* matAStartingRowPtr;
+    int matCWidth;
+    float* matCStartingRowPtr;
+    struct matrix* matB;
+    int amountOfRowsToOperate;
 } MATRIX_MATRIX_MULT_THREAD_ARGS;
 
 // =========== AUX FUNCTIONS =========== 
 int check_scalar_matrix_mult_correctness(struct matrix *matrix);
 int check_matrix_matrix_mult_correctness(struct matrix *a, struct matrix *b, struct matrix *c);
-COMMON_THREAD_ARGS create_common_thread_args(int amountOfRowsToOperate, unsigned long matrixWidth, float *startingRowPtr);
+//COMMON_THREAD_ARGS create_common_thread_args(int matrixArraySize, unsigned long matrixWidth, float *startingRowPtr);
 int get_amount_of_rows_to_operate(unsigned long matrixHeight);
-int create_threads();
+void create_threads(void* args, void* threadFunction, int sizeofArgsStruct);
 
 // =========== THREAD FUNCTIONS =========== 
 void *thread_scalar_matrix_mult(void* args);
@@ -49,41 +47,20 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
         return 0;
     }
 
-    pthread_t idThreads[threadAmount];
-    pthread_attr_t threadAttribute;
     SCALAR_MATRIX_MULT_THREAD_ARGS args[threadAmount];
-    int threadCreateRetVal;
-    int threadJoinRetVal;
-    void* pStatus;
-
-    pthread_attr_init(&threadAttribute);
-    pthread_attr_setdetachstate(&threadAttribute, PTHREAD_CREATE_JOINABLE);
 
     float* auxMatrixRowsPointer = matrix->rows;
     int amountOfRowsToOperate = get_amount_of_rows_to_operate(matrix->height);
-    for(int i = 0 ; i < threadAmount ; i++, auxMatrixRowsPointer += amountOfRowsToOperate * matrix->width)
+    int matrixArraySize = amountOfRowsToOperate * matrix->width;
+    for(int i = 0 ; i < threadAmount ; i++, auxMatrixRowsPointer += matrixArraySize)
     {
-        args[i].commonArgs = create_common_thread_args(amountOfRowsToOperate, matrix->width, auxMatrixRowsPointer);
+        args[i].matrixArraySize = matrixArraySize;
+        args[i].matrixWidth = matrix->width;
+        args[i].matrixStartingRowPtr = auxMatrixRowsPointer;
         args[i].scalarValue = scalar_value;
     }
 
-    for(int i = 0 ; i < threadAmount ; i++)
-    {
-        threadCreateRetVal = pthread_create(&idThreads[i], &threadAttribute, thread_scalar_matrix_mult, &args[i]);
-
-        if(threadCreateRetVal != 0)
-        {
-            fprintf(stderr, "ERROR! Thread creation failed with error %d\n", threadCreateRetVal);
-            exit(-1);
-        }
-
-        threadJoinRetVal = pthread_join(idThreads[i], &pStatus);
-        if(threadJoinRetVal != 0)
-        {
-            fprintf(stderr, "ERROR! Thread join creation failed with error %d\n", threadJoinRetVal);
-            exit(-1);
-        }
-    }
+    create_threads(args, thread_scalar_matrix_mult, sizeof(SCALAR_MATRIX_MULT_THREAD_ARGS));
     
     return 1;
 }
@@ -92,10 +69,9 @@ void *thread_scalar_matrix_mult(void* pthreadArgs)
 {
     SCALAR_MATRIX_MULT_THREAD_ARGS *args = (SCALAR_MATRIX_MULT_THREAD_ARGS*)pthreadArgs;
 
-    float *auxMatrixPointer = args->commonArgs.matrixStartingRowPtr;
-    int matrixArrayLength = args->commonArgs.amountOfRowsToOperate * args->commonArgs.matrixWidth;
+    float *auxMatrixPointer = args->matrixStartingRowPtr;
 
-    float *lastMatrixAddress = auxMatrixPointer + matrixArrayLength;
+    float *lastMatrixAddress = auxMatrixPointer + args->matrixArraySize;
 
     __m256 m256ScalarVector = _mm256_set1_ps(args->scalarValue);
     __m256 m256MatrixPointer;
@@ -120,37 +96,53 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
     }
 
     float *auxMatrixAPointer = a->rows;
-    float *auxMatrixBPointer = b->rows;
     float *auxMatrixCPointer = c->rows;
 
-    int matrixALength = a->height * a->width;
+    MATRIX_MATRIX_MULT_THREAD_ARGS args[threadAmount];
 
-    float *lastMatrixAAddress = auxMatrixAPointer + matrixALength;
+    int amountOfRowsToOperate = get_amount_of_rows_to_operate(c->height);
+    int matrixAArraySize = amountOfRowsToOperate * a->width;
+    int matrixCArraySize = amountOfRowsToOperate * c->width;
+    for(int i = 0 ; i < threadAmount ; i++, auxMatrixAPointer+=matrixAArraySize, auxMatrixCPointer+=matrixCArraySize)
+    {
+        args[i].matAWidth = a->width;
+        args[i].matAStartingRowPtr = auxMatrixAPointer;
+        args[i].matCWidth = c->width;
+        args[i].matCStartingRowPtr = auxMatrixCPointer;
+        args[i].matB = b;
+        args[i].amountOfRowsToOperate = amountOfRowsToOperate;
+    }
 
-    int columnA = 0;
+    create_threads(args, thread_matrix_matrix_mult, sizeof(MATRIX_MATRIX_MULT_THREAD_ARGS));
+
+    return 1;
+}
+
+void *thread_matrix_matrix_mult(void* pthreadArgs)
+{
+    MATRIX_MATRIX_MULT_THREAD_ARGS* args = (MATRIX_MATRIX_MULT_THREAD_ARGS*) pthreadArgs;
+
+    float *auxMatrixAPointer = args->matAStartingRowPtr;
+    float *auxMatrixBPointer = args->matB->rows;
+    float *auxMatrixCPointer = args->matCStartingRowPtr;
 
     __m256 m256MatrixAPointer;
     __m256 m256MatrixBPointer;
     __m256 m256MatrixCPointer;
     __m256 m256MultAddResultPointer;
 
-    for (int row = 0; auxMatrixAPointer < lastMatrixAAddress; auxMatrixAPointer++, columnA++)
+    int columnA = 0;
+    for (int rowA = 0 ; rowA < args->amountOfRowsToOperate ; auxMatrixAPointer++)
     {
-        if (columnA == a->width)
-        {
-            row++;
-            columnA = 0;
-        }
+        auxMatrixCPointer = args->matCStartingRowPtr;
+        auxMatrixCPointer += rowA * args->matCWidth;
 
-        auxMatrixCPointer = c->rows;
-        auxMatrixCPointer += row * c->width;
-
-        auxMatrixBPointer = b->rows;
-        auxMatrixBPointer += row * b->width;
+        auxMatrixBPointer = args->matB->rows;
+        auxMatrixBPointer += columnA * args->matB->width;
 
         m256MatrixAPointer = _mm256_set1_ps(*auxMatrixAPointer);
 
-        for (int column = 0; column < b->width; auxMatrixBPointer+=8, auxMatrixCPointer+=8, column+=8)
+        for (int column = 0; column < args->matB->width; auxMatrixBPointer+=8, auxMatrixCPointer+=8, column+=8)
         {
             m256MatrixBPointer = _mm256_load_ps(auxMatrixBPointer);
             m256MatrixCPointer = _mm256_load_ps(auxMatrixCPointer);
@@ -158,9 +150,19 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 
             _mm256_store_ps(auxMatrixCPointer, m256MultAddResultPointer);
         }
+
+        if (columnA+1 == args->matAWidth)
+        {
+            rowA++;
+            columnA = 0;
+        }
+        else
+        {
+            columnA++;
+        }
     }
 
-    return 1;
+    pthread_exit(NULL);
 }
 
 void set_number_threads(int num_threads)
@@ -174,6 +176,35 @@ void set_number_threads(int num_threads)
     threadAmount = num_threads;
 }
 
+void create_threads(void* args, void* threadFunction, int sizeofArgsStruct)
+{
+    pthread_t idThreads[threadAmount];
+    pthread_attr_t threadAttribute;
+    int threadCreateRetVal, threadJoinRetVal;
+    void* pStatus;
+
+    pthread_attr_init(&threadAttribute);
+    pthread_attr_setdetachstate(&threadAttribute, PTHREAD_CREATE_JOINABLE);
+
+    for(int i = 0 ; i < threadAmount ; i++, args += sizeofArgsStruct)
+    {
+        threadCreateRetVal = pthread_create(&idThreads[i], &threadAttribute, threadFunction, args);
+
+        if(threadCreateRetVal != 0)
+        {
+            fprintf(stderr, "ERROR! Thread creation failed with error %d\n", threadCreateRetVal);
+            exit(-1);
+        }
+
+        threadJoinRetVal = pthread_join(idThreads[i], &pStatus);
+        if(threadJoinRetVal != 0)
+        {
+            fprintf(stderr, "ERROR! Thread join creation failed with error %d\n", threadJoinRetVal);
+            exit(-1);
+        }
+    }
+}
+
 unsigned long get_number_threads()
 {
     return (unsigned long) threadAmount;
@@ -181,7 +212,7 @@ unsigned long get_number_threads()
 
 int check_thread_matrix_correctness(struct matrix* matrix, char* matrixName)
 {
-    if(matrix->height % threadAmount != 0)
+    if(matrix->height % threadAmount != 0 || threadAmount > matrix->height)
     {
         fprintf(stderr, "ERROR! Matrix %s's number of rows (%lu) must be a multiple of the number of threads (amount set: %d)\n", matrixName, matrix->height, threadAmount);
         return 0;
@@ -237,15 +268,4 @@ int check_matrix_matrix_mult_correctness(struct matrix *a, struct matrix *b, str
 int get_amount_of_rows_to_operate(unsigned long matrixHeight)
 {
     return matrixHeight/threadAmount;
-}
-
-COMMON_THREAD_ARGS create_common_thread_args(int amountOfRowsToOperate, unsigned long matrixWidth, float *startingRowPtr)
-{
-    COMMON_THREAD_ARGS args;
-
-    args.amountOfRowsToOperate = amountOfRowsToOperate;
-    args.matrixStartingRowPtr = startingRowPtr;
-    args.matrixWidth = matrixWidth;
-
-    return args;
 }
