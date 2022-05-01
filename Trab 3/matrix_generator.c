@@ -10,7 +10,7 @@ float* generate_matrix(float rows, float cols)
     {
         for(float col = 0 ; col < cols ; col++, auxMatrixPtr++)
         {
-            *auxMatrixPtr = col + 1;
+            *auxMatrixPtr = col + row + 1;
         }
     }
 
