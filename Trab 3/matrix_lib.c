@@ -195,7 +195,10 @@ void create_threads(void* args, void* threadFunction, int sizeofArgsStruct)
             fprintf(stderr, "ERROR! Thread creation failed with error %d\n", threadCreateRetVal);
             exit(-1);
         }
+    }
 
+    for(int i = 0 ; i < threadAmount ; i++)
+    {
         threadJoinRetVal = pthread_join(idThreads[i], &pStatus);
         if(threadJoinRetVal != 0)
         {
