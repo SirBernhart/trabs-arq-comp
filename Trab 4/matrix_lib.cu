@@ -126,7 +126,8 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         printf("cudaMemcpy (c->h_rows -> c->d_rows) returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
         return 0;
     }
-    device_matrix_matrix_mult(int datasetSizeC, a->d_rows, b->d_rows, c->d_rows)
+
+    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(int datasetSizeC, a->d_rows, b->d_rows, c->d_rows)
 
         cudaDeviceSynchronize();
 
@@ -134,7 +135,7 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 
     if (cudaError != cudaSuccess)
     {
-        printf("cudaMemcpy (c->d_rows -> c->h_rows) returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
+        printf("cudaMemcpy (c->d_rows -> matrix->h_rows) returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
         return 0;
     }
 
