@@ -127,9 +127,9 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         return 0;
     }
 
-    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(int datasetSizeC, a->d_rows, b->d_rows, c->d_rows)
+    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(int datasetSizeC, a->d_rows, b->d_rows, c->d_rows);
 
-        cudaDeviceSynchronize();
+    cudaDeviceSynchronize();
 
     cudaError = cudaMemcpy(c->h_rows, c->d_rows, datasetSizeC * sizeof(float), cudaMemcpyDeviceToHost);
 
