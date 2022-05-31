@@ -9,20 +9,26 @@
 int threadsPerBlock = 256;
 int maxBlocksPerGrid = 4096;
 
-__global__ device_scalar_matrix_mult(int datasetSize, float scalar, float *matrixDeviceRows)
+__global__ void device_scalar_matrix_mult(int datasetSize, float scalar, float *matrixDeviceRows)
 {
     int numThreads = gridDim.x * blockDim.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int positionsToMultiply = (datasetSize + (numThreads - 1)) / numThreads;
     int initialPos = index * positionsToMultiply;
-
+    int currIndex = initialPos;
+    
     float *auxMatrixPtr = matrixDeviceRows + initialPos;
 
-    for (int i = 0; i < positionsToMultiply; i++, auxMatrixPtr++)
+    if(initialPos >= datasetSize)
+    {
+        return;
+    }
+
+    for (int i = 0 ; i < positionsToMultiply ; i++, auxMatrixPtr++)
     {
         if (initialPos + i < datasetSize)
         {
-            auxMatrixPtr *= scalar;
+            *auxMatrixPtr = scalar * *auxMatrixPtr;
         }
     }
 }
@@ -31,7 +37,7 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
 {
     int datasetSize = matrix->height * matrix->width;
 
-    cudaError = cudaMemcpy(matrix->d_rows, matrix->h_rows, datasetSize * sizeof(float), cudaMemcpyHostToDevice);
+    cudaError_t cudaError = cudaMemcpy(matrix->d_rows, matrix->h_rows, datasetSize * sizeof(float), cudaMemcpyHostToDevice);
 
     if (cudaError != cudaSuccess)
     {
@@ -39,7 +45,7 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
         return 0;
     }
 
-    device_scalar_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(datasetSize, matrix.d_rows);
+    device_scalar_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(datasetSize, scalar_value, matrix->d_rows);
 
     cudaDeviceSynchronize();
 
@@ -54,40 +60,45 @@ int scalar_matrix_mult(float scalar_value, struct matrix *matrix)
     return 1;
 }
 
-__global__ device_matrix_matrix_mult(int datasetSize, float *matrixADeviceRows, float *matrixBDeviceRows, float *matrixCDeviceRows)
+__global__ void device_matrix_matrix_mult(int datasetSize, int aWidth, float *aRows, int bWidth, float *bRows, int cWidth, float *cRows)
 {
     int numThreads = gridDim.x * blockDim.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int positionsToMultiply = (datasetSize + (numThreads - 1)) / numThreads;
-    int initialPos = index * positionsToMultiply;
+    int rowsToMultiply = (datasetSize + (numThreads - 1)) / numThreads;
+    int initialPos = index * rowsToMultiply;
 
-    float *auxMatrixAPtr = matrixADeviceRows + initialPos;
-    float *auxMatrixBPtr = matrixBDeviceRows + initialPos;
-    float *auxMatrixCPtr = matrixCDeviceRows + initialPos;
+    float *auxMatrixAPtr = aRows + initialPos * aWidth;
+    float *auxMatrixBPtr = bRows;
+    float *auxMatrixCPtr = cRows + initialPos * cWidth;
 
     int aColumn = 0;
-    for (int aRow = 0; aRow < args->amountOfRowsToOperate; auxMatrixAPointer++)
+
+    if(initialPos >= datasetSize)
     {
-        auxMatrixCPointer = args->matCStartingRowPtr;
-        auxMatrixCPointer += aRow * args->matCWidth;
+        return;
+    }
 
-        auxMatrixBPointer = args->matB->rows;
-        auxMatrixBPointer += aColumn * args->matB->width;
-
-        m256MatrixAPointer = _mm256_set1_ps(*auxMatrixAPointer);
-
-        for (int column = 0; column < args->matB->width; auxMatrixBPointer += 8, auxMatrixCPointer += 8, column += 8)
+    for (int aCurrRow = 0 ; aCurrRow < rowsToMultiply ; auxMatrixAPtr++)
+    {
+        if(initialPos + aCurrRow >= datasetSize)
         {
-            m256MatrixBPointer = _mm256_load_ps(auxMatrixBPointer);
-            m256MatrixCPointer = _mm256_load_ps(auxMatrixCPointer);
-            m256MultAddResultPointer = _mm256_fmadd_ps(m256MatrixAPointer, m256MatrixBPointer, m256MatrixCPointer);
-
-            _mm256_store_ps(auxMatrixCPointer, m256MultAddResultPointer);
+            break;
         }
 
-        if (aColumn + 1 == args->matAWidth)
+        auxMatrixCPtr = cRows + initialPos * cWidth;
+        auxMatrixCPtr += aCurrRow * cWidth;
+
+        auxMatrixBPtr = bRows;
+        auxMatrixBPtr += aColumn * bWidth;
+
+        for (int column = 0; column < bWidth; auxMatrixBPtr++, auxMatrixCPtr++, column++)
         {
-            aRow++;
+            *auxMatrixCPtr += *auxMatrixAPtr * (*auxMatrixBPtr);
+        }
+
+        if (aColumn + 1 == aWidth)
+        {
+            aCurrRow++;
             aColumn = 0;
         }
         else
@@ -99,19 +110,19 @@ __global__ device_matrix_matrix_mult(int datasetSize, float *matrixADeviceRows, 
 
 int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
 {
-    int datasetSizeA = a->height * a->width;
+    int datasetSizeA = a->height * a->width * sizeof(float);
+    int datasetSizeB = b->height * b->width * sizeof(float);
+    int datasetSizeC = c->height * c->width * sizeof(float);
 
-    int datasetSizeB = b->height * b->width;
-    int datasetSizeC = c->height * c->width;
-
-    cudaError = cudaMemcpy(a->d_rows, a->h_rows, datasetSizeA * sizeof(float), cudaMemcpyHostToDevice);
+    cudaError_t cudaError = cudaMemcpy(a->d_rows, a->h_rows, datasetSizeA, cudaMemcpyHostToDevice);
 
     if (cudaError != cudaSuccess)
     {
         printf("cudaMemcpy (a->h_rows -> a->d_rows) returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
         return 0;
     }
-    cudaError = cudaMemcpy(b->d_rows, b->h_rows, datasetSizeB * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaError = cudaMemcpy(b->d_rows, b->h_rows, datasetSizeB, cudaMemcpyHostToDevice);
 
     if (cudaError != cudaSuccess)
     {
@@ -119,7 +130,7 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         return 0;
     }
 
-    cudaError = cudaMemcpy(c->d_rows, c->h_rows, datasetSizeC * sizeof(float), cudaMemcpyHostToDevice);
+    cudaError = cudaMemcpy(c->d_rows, c->h_rows, datasetSizeC, cudaMemcpyHostToDevice);
 
     if (cudaError != cudaSuccess)
     {
@@ -127,12 +138,12 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         return 0;
     }
 
-    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(int datasetSizeC, a->d_rows, b->d_rows, c->d_rows);
+    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(c->height, a->width, a->d_rows, b->width, b->d_rows, c->width, c->d_rows);
 
     cudaDeviceSynchronize();
 
-    cudaError = cudaMemcpy(c->h_rows, c->d_rows, datasetSizeC * sizeof(float), cudaMemcpyDeviceToHost);
-
+    cudaError = cudaMemcpy(c->h_rows, c->d_rows, datasetSizeC, cudaMemcpyDeviceToHost);
+    
     if (cudaError != cudaSuccess)
     {
         printf("cudaMemcpy (c->d_rows -> matrix->h_rows) returned error %s (code %d), line(%d)\n", cudaGetErrorString(cudaError), cudaError, __LINE__);
