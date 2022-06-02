@@ -15,20 +15,14 @@ __global__ void device_scalar_matrix_mult(int datasetSize, float scalar, float *
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int positionsToMultiply = (datasetSize + (numThreads - 1)) / numThreads;
     int initialPos = index * positionsToMultiply;
-    int currIndex = initialPos;
     
     float *auxMatrixPtr = matrixDeviceRows + initialPos;
-
-    if(initialPos >= datasetSize)
-    {
-        return;
-    }
 
     for (int i = 0 ; i < positionsToMultiply ; i++, auxMatrixPtr++)
     {
         if (initialPos + i < datasetSize)
         {
-            *auxMatrixPtr = scalar * *auxMatrixPtr;
+            *auxMatrixPtr *= scalar;
         }
     }
 }
@@ -64,47 +58,33 @@ __global__ void device_matrix_matrix_mult(int datasetSize, int aWidth, float *aR
 {
     int numThreads = gridDim.x * blockDim.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int rowsToMultiply = (datasetSize + (numThreads - 1)) / numThreads;
-    int initialPos = index * rowsToMultiply;
+    int elementsToCalculate = (datasetSize + (numThreads - 1)) / numThreads;
+    int initialPos = index * elementsToCalculate;
 
-    float *auxMatrixAPtr = aRows + initialPos * aWidth;
-    float *auxMatrixBPtr = bRows;
-    float *auxMatrixCPtr = cRows + initialPos * cWidth;
-
-    int aColumn = 0;
+    float *auxMatrixAPtr;
+    float *auxMatrixBPtr;
+    float *auxMatrixCPtr;
 
     if(initialPos >= datasetSize)
     {
         return;
     }
+    auxMatrixCPtr = cRows + initialPos;
 
-    for (int aCurrRow = 0 ; aCurrRow < rowsToMultiply ; auxMatrixAPtr++)
+    for(int elementsCalculated = 0 ; elementsCalculated < elementsToCalculate ; elementsCalculated++)
     {
-        if(initialPos + aCurrRow >= datasetSize)
+        if(initialPos + elementsCalculated >= datasetSize)
         {
-            break;
+            return;
         }
+        auxMatrixAPtr = aRows + (initialPos/cWidth) * aWidth;
+        auxMatrixBPtr = bRows + (initialPos % bWidth);
 
-        auxMatrixCPtr = cRows + initialPos * cWidth;
-        auxMatrixCPtr += aCurrRow * cWidth;
-
-        auxMatrixBPtr = bRows;
-        auxMatrixBPtr += aColumn * bWidth;
-
-        for (int column = 0; column < bWidth; auxMatrixBPtr++, auxMatrixCPtr++, column++)
+        for(int aColumnFromInitPos = 0 ; aColumnFromInitPos < aWidth ; aColumnFromInitPos++, auxMatrixAPtr++, auxMatrixBPtr += bWidth)
         {
             *auxMatrixCPtr += *auxMatrixAPtr * (*auxMatrixBPtr);
         }
-
-        if (aColumn + 1 == aWidth)
-        {
-            aCurrRow++;
-            aColumn = 0;
-        }
-        else
-        {
-            aColumn++;
-        }
+        auxMatrixCPtr++;
     }
 }
 
@@ -138,7 +118,7 @@ int matrix_matrix_mult(struct matrix *a, struct matrix *b, struct matrix *c)
         return 0;
     }
 
-    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(c->height, a->width, a->d_rows, b->width, b->d_rows, c->width, c->d_rows);
+    device_matrix_matrix_mult<<<maxBlocksPerGrid, threadsPerBlock>>>(datasetSizeC/sizeof(float), a->width, a->d_rows, b->width, b->d_rows, c->width, c->d_rows);
 
     cudaDeviceSynchronize();
 
